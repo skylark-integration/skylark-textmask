@@ -5,5 +5,5 @@
  * @link https://github.com/skylark-integration/skylark-textmask/
  * @license MIT
  */
-define(["./textmask","./maskInput"],function(t){"use strict";return t});
-//# sourceMappingURL=sourcemaps/main.js.map
+define(["skylark-langx/skylark"],function(t){"use strict";return t.attach("intg.textmask",{})});
+//# sourceMappingURL=sourcemaps/textmask.js.map

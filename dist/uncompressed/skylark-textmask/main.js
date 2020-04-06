@@ -1,15 +1,9 @@
 define([
-	"skylark-langx/skylark",
-	'./conformToMask',
-	'./adjustCaretPosition',
-	'./createTextMaskInputElement'
-],function (skylark,conformToMask,adjustCaretPosition,createTextMaskInputElement) {
-
+	"./textmask",
+	"./maskInput"
+],function (textmask) {
     'use strict';
 
-    return skylark.attach("intg.textmask",{
-        conformToMask,
-        adjustCaretPosition,
-        createTextMaskInputElement
-    });
+	return textmask;
+
 }); 

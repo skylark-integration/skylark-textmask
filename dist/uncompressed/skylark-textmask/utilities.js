@@ -1,7 +1,7 @@
-define(['./constants'], function (defaultPlaceholderChar) {
+define(['./constants'], function (constants) {
     'use strict';
     const emptyArray = [];
-    function convertMaskToPlaceholder(mask = emptyArray, placeholderChar = defaultPlaceholderChar) {
+    function convertMaskToPlaceholder(mask = emptyArray, placeholderChar = constants.placeholderChar) {
         if (!isArray(mask)) {
             throw new Error('Text-mask:convertMaskToPlaceholder; The mask property must be an array.');
         }

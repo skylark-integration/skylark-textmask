@@ -1,0 +1,1 @@
+{"version":3,"sources":["textmask.js"],"names":["define","skylark","attach"],"mappings":";;;;;;;AAAAA,QACC,yBACC,SAAUC,GACR,aAEH,OAAOA,EAAQC,OAAO","file":"../textmask.js","sourcesContent":["define([\r\n\t\"skylark-langx/skylark\"\r\n],function (skylark) {\r\n    'use strict';\r\n\r\n\treturn skylark.attach(\"intg.textmask\",{\r\n\t});\t\t\r\n\r\n}); "]}

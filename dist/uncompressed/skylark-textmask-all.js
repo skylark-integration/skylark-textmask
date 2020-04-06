@@ -128,6 +128,103 @@ define('skylark-langx/skylark',[
 	return ns;
 });
 
+define('skylark-textmask/textmask',[
+	"skylark-langx/skylark"
+],function (skylark) {
+    'use strict';
+
+	return skylark.attach("intg.textmask",{
+	});		
+
+}); 
+define('skylark-textmask/adjustCaretPosition',[
+    "./textmask"
+],function (textmask) {
+    'use strict';
+    const defaultArray = [];
+    const emptyString = '';
+
+    function adjustCaretPosition({previousConformedValue = emptyString, previousPlaceholder = emptyString, currentCaretPosition = 0, conformedValue, rawValue, placeholderChar, placeholder, indexesOfPipedChars = defaultArray, caretTrapIndexes = defaultArray}) {
+        if (currentCaretPosition === 0 || !rawValue.length) {
+            return 0;
+        }
+        const rawValueLength = rawValue.length;
+        const previousConformedValueLength = previousConformedValue.length;
+        const placeholderLength = placeholder.length;
+        const conformedValueLength = conformedValue.length;
+        const editLength = rawValueLength - previousConformedValueLength;
+        const isAddition = editLength > 0;
+        const isFirstRawValue = previousConformedValueLength === 0;
+        const isPartialMultiCharEdit = editLength > 1 && !isAddition && !isFirstRawValue;
+        if (isPartialMultiCharEdit) {
+            return currentCaretPosition;
+        }
+        const possiblyHasRejectedChar = isAddition && (previousConformedValue === conformedValue || conformedValue === placeholder);
+        let startingSearchIndex = 0;
+        let trackRightCharacter;
+        let targetChar;
+        if (possiblyHasRejectedChar) {
+            startingSearchIndex = currentCaretPosition - editLength;
+        } else {
+            const normalizedConformedValue = conformedValue.toLowerCase();
+            const normalizedRawValue = rawValue.toLowerCase();
+            const leftHalfChars = normalizedRawValue.substr(0, currentCaretPosition).split(emptyString);
+            const intersection = leftHalfChars.filter(char => normalizedConformedValue.indexOf(char) !== -1);
+            targetChar = intersection[intersection.length - 1];
+            const previousLeftMaskChars = previousPlaceholder.substr(0, intersection.length).split(emptyString).filter(char => char !== placeholderChar).length;
+            const leftMaskChars = placeholder.substr(0, intersection.length).split(emptyString).filter(char => char !== placeholderChar).length;
+            const masklengthChanged = leftMaskChars !== previousLeftMaskChars;
+            const targetIsMaskMovingLeft = previousPlaceholder[intersection.length - 1] !== undefined && placeholder[intersection.length - 2] !== undefined && previousPlaceholder[intersection.length - 1] !== placeholderChar && previousPlaceholder[intersection.length - 1] !== placeholder[intersection.length - 1] && previousPlaceholder[intersection.length - 1] === placeholder[intersection.length - 2];
+            if (!isAddition && (masklengthChanged || targetIsMaskMovingLeft) && previousLeftMaskChars > 0 && placeholder.indexOf(targetChar) > -1 && rawValue[currentCaretPosition] !== undefined) {
+                trackRightCharacter = true;
+                targetChar = rawValue[currentCaretPosition];
+            }
+            const pipedChars = indexesOfPipedChars.map(index => normalizedConformedValue[index]);
+            const countTargetCharInPipedChars = pipedChars.filter(char => char === targetChar).length;
+            const countTargetCharInIntersection = intersection.filter(char => char === targetChar).length;
+            const countTargetCharInPlaceholder = placeholder.substr(0, placeholder.indexOf(placeholderChar)).split(emptyString).filter((char, index) => char === targetChar && rawValue[index] !== char).length;
+            const requiredNumberOfMatches = countTargetCharInPlaceholder + countTargetCharInIntersection + countTargetCharInPipedChars + (trackRightCharacter ? 1 : 0);
+            let numberOfEncounteredMatches = 0;
+            for (let i = 0; i < conformedValueLength; i++) {
+                const conformedValueChar = normalizedConformedValue[i];
+                startingSearchIndex = i + 1;
+                if (conformedValueChar === targetChar) {
+                    numberOfEncounteredMatches++;
+                }
+                if (numberOfEncounteredMatches >= requiredNumberOfMatches) {
+                    break;
+                }
+            }
+        }
+        if (isAddition) {
+            let lastPlaceholderChar = startingSearchIndex;
+            for (let i = startingSearchIndex; i <= placeholderLength; i++) {
+                if (placeholder[i] === placeholderChar) {
+                    lastPlaceholderChar = i;
+                }
+                if (placeholder[i] === placeholderChar || caretTrapIndexes.indexOf(i) !== -1 || i === placeholderLength) {
+                    return lastPlaceholderChar;
+                }
+            }
+        } else {
+            if (trackRightCharacter) {
+                for (let i = startingSearchIndex - 1; i >= 0; i--) {
+                    if (conformedValue[i] === targetChar || caretTrapIndexes.indexOf(i) !== -1 || i === 0) {
+                        return i;
+                    }
+                }
+            } else {
+                for (let i = startingSearchIndex; i >= 0; i--) {
+                    if (placeholder[i - 1] === placeholderChar || caretTrapIndexes.indexOf(i) !== -1 || i === 0) {
+                        return i;
+                    }
+                }
+            }
+        }
+    }
+
+    return textmask.adjustCaretPosition = adjustCaretPosition;
+});
 define('skylark-textmask/constants',[],function () {
     'use strict';
     const placeholderChar = '_';
@@ -137,10 +234,10 @@ define('skylark-textmask/constants',[],function () {
         strFunction: strFunction
     };
 });
-define('skylark-textmask/utilities',['./constants'], function (defaultPlaceholderChar) {
+define('skylark-textmask/utilities',['./constants'], function (constants) {
     'use strict';
     const emptyArray = [];
-    function convertMaskToPlaceholder(mask = emptyArray, placeholderChar = defaultPlaceholderChar) {
+    function convertMaskToPlaceholder(mask = emptyArray, placeholderChar = constants.placeholderChar) {
         if (!isArray(mask)) {
             throw new Error('Text-mask:convertMaskToPlaceholder; The mask property must be an array.');
         }
@@ -186,23 +283,24 @@ define('skylark-textmask/utilities',['./constants'], function (defaultPlaceholde
     };
 });
 define('skylark-textmask/conformToMask',[
+    "./textmask",
     './utilities',
-    './constants',
     './constants'
-], function (a, defaultPlaceholderChar, b) {
-    'use strict';
+], function (textmask,utilities,constants) {
+
     const emptyArray = [];
     const emptyString = '';
-    return function conformToMask(rawValue = emptyString, mask = emptyArray, config = {}) {
-        if (!a.isArray(mask)) {
-            if (typeof mask === b.strFunction) {
+
+    function conformToMask(rawValue = emptyString, mask = emptyArray, config = {}) {
+        if (!utilities.isArray(mask)) {
+            if (typeof mask === constants.strFunction) {
                 mask = mask(rawValue, config);
-                mask = a.processCaretTraps(mask).maskWithoutCaretTraps;
+                mask = utilities.processCaretTraps(mask).maskWithoutCaretTraps;
             } else {
                 throw new Error('Text-mask:conformToMask; The mask property must be an array.');
             }
         }
-        const {guide = true, previousConformedValue = emptyString, placeholderChar = defaultPlaceholderChar, placeholder = a.convertMaskToPlaceholder(mask, placeholderChar), currentCaretPosition, keepCharPositions} = config;
+        const {guide = true, previousConformedValue = emptyString, placeholderChar = constants.placeholderChar, placeholder = utilities.convertMaskToPlaceholder(mask, placeholderChar), currentCaretPosition, keepCharPositions} = config;
         const suppressGuide = guide === false && previousConformedValue !== undefined;
         const rawValueLength = rawValue.length;
         const previousConformedValueLength = previousConformedValue.length;
@@ -303,105 +401,29 @@ define('skylark-textmask/conformToMask',[
             conformedValue,
             meta: { someCharsRejected }
         };
-    };
-});
-define('skylark-textmask/adjustCaretPosition',[],function () {
-    'use strict';
-    const defaultArray = [];
-    const emptyString = '';
-    return function adjustCaretPosition({previousConformedValue = emptyString, previousPlaceholder = emptyString, currentCaretPosition = 0, conformedValue, rawValue, placeholderChar, placeholder, indexesOfPipedChars = defaultArray, caretTrapIndexes = defaultArray}) {
-        if (currentCaretPosition === 0 || !rawValue.length) {
-            return 0;
-        }
-        const rawValueLength = rawValue.length;
-        const previousConformedValueLength = previousConformedValue.length;
-        const placeholderLength = placeholder.length;
-        const conformedValueLength = conformedValue.length;
-        const editLength = rawValueLength - previousConformedValueLength;
-        const isAddition = editLength > 0;
-        const isFirstRawValue = previousConformedValueLength === 0;
-        const isPartialMultiCharEdit = editLength > 1 && !isAddition && !isFirstRawValue;
-        if (isPartialMultiCharEdit) {
-            return currentCaretPosition;
-        }
-        const possiblyHasRejectedChar = isAddition && (previousConformedValue === conformedValue || conformedValue === placeholder);
-        let startingSearchIndex = 0;
-        let trackRightCharacter;
-        let targetChar;
-        if (possiblyHasRejectedChar) {
-            startingSearchIndex = currentCaretPosition - editLength;
-        } else {
-            const normalizedConformedValue = conformedValue.toLowerCase();
-            const normalizedRawValue = rawValue.toLowerCase();
-            const leftHalfChars = normalizedRawValue.substr(0, currentCaretPosition).split(emptyString);
-            const intersection = leftHalfChars.filter(char => normalizedConformedValue.indexOf(char) !== -1);
-            targetChar = intersection[intersection.length - 1];
-            const previousLeftMaskChars = previousPlaceholder.substr(0, intersection.length).split(emptyString).filter(char => char !== placeholderChar).length;
-            const leftMaskChars = placeholder.substr(0, intersection.length).split(emptyString).filter(char => char !== placeholderChar).length;
-            const masklengthChanged = leftMaskChars !== previousLeftMaskChars;
-            const targetIsMaskMovingLeft = previousPlaceholder[intersection.length - 1] !== undefined && placeholder[intersection.length - 2] !== undefined && previousPlaceholder[intersection.length - 1] !== placeholderChar && previousPlaceholder[intersection.length - 1] !== placeholder[intersection.length - 1] && previousPlaceholder[intersection.length - 1] === placeholder[intersection.length - 2];
-            if (!isAddition && (masklengthChanged || targetIsMaskMovingLeft) && previousLeftMaskChars > 0 && placeholder.indexOf(targetChar) > -1 && rawValue[currentCaretPosition] !== undefined) {
-                trackRightCharacter = true;
-                targetChar = rawValue[currentCaretPosition];
-            }
-            const pipedChars = indexesOfPipedChars.map(index => normalizedConformedValue[index]);
-            const countTargetCharInPipedChars = pipedChars.filter(char => char === targetChar).length;
-            const countTargetCharInIntersection = intersection.filter(char => char === targetChar).length;
-            const countTargetCharInPlaceholder = placeholder.substr(0, placeholder.indexOf(placeholderChar)).split(emptyString).filter((char, index) => char === targetChar && rawValue[index] !== char).length;
-            const requiredNumberOfMatches = countTargetCharInPlaceholder + countTargetCharInIntersection + countTargetCharInPipedChars + (trackRightCharacter ? 1 : 0);
-            let numberOfEncounteredMatches = 0;
-            for (let i = 0; i < conformedValueLength; i++) {
-                const conformedValueChar = normalizedConformedValue[i];
-                startingSearchIndex = i + 1;
-                if (conformedValueChar === targetChar) {
-                    numberOfEncounteredMatches++;
-                }
-                if (numberOfEncounteredMatches >= requiredNumberOfMatches) {
-                    break;
-                }
-            }
-        }
-        if (isAddition) {
-            let lastPlaceholderChar = startingSearchIndex;
-            for (let i = startingSearchIndex; i <= placeholderLength; i++) {
-                if (placeholder[i] === placeholderChar) {
-                    lastPlaceholderChar = i;
-                }
-                if (placeholder[i] === placeholderChar || caretTrapIndexes.indexOf(i) !== -1 || i === placeholderLength) {
-                    return lastPlaceholderChar;
-                }
-            }
-        } else {
-            if (trackRightCharacter) {
-                for (let i = startingSearchIndex - 1; i >= 0; i--) {
-                    if (conformedValue[i] === targetChar || caretTrapIndexes.indexOf(i) !== -1 || i === 0) {
-                        return i;
-                    }
-                }
-            } else {
-                for (let i = startingSearchIndex; i >= 0; i--) {
-                    if (placeholder[i - 1] === placeholderChar || caretTrapIndexes.indexOf(i) !== -1 || i === 0) {
-                        return i;
-                    }
-                }
-            }
-        }
-    };
+    }
+
+
+    return textmask.conformToMask = conformToMask;
+    
 });
 define('skylark-textmask/createTextMaskInputElement',[
+    "./textmask",
     './adjustCaretPosition',
     './conformToMask',
     './utilities',
-    './constants',
     './constants'
-], function (adjustCaretPosition, conformToMask, a, defaultPlaceholderChar, b) {
+], function (textmask,adjustCaretPosition, conformToMask, a,constants) {
     'use strict';
+
     const emptyString = '';
     const strNone = 'none';
     const strObject = 'object';
     const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
     const defer = typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout;
-    return function createTextMaskInputElement(config) {
+
+    function createTextMaskInputElement(config) {
         const state = {
             previousConformedValue: undefined,
             previousPlaceholder: undefined
@@ -413,7 +435,7 @@ define('skylark-textmask/createTextMaskInputElement',[
                 mask: providedMask,
                 guide,
                 pipe,
-                placeholderChar = defaultPlaceholderChar,
+                placeholderChar = constants.placeholderChar,
                 keepCharPositions = false,
                 showMask = false
             } = config) {
@@ -439,7 +461,7 @@ define('skylark-textmask/createTextMaskInputElement',[
                 const {selectionEnd: currentCaretPosition} = inputElement;
                 const {previousConformedValue, previousPlaceholder} = state;
                 let caretTrapIndexes;
-                if (typeof providedMask === b.strFunction) {
+                if (typeof providedMask === constants.strFunction) {
                     mask = providedMask(safeRawValue, {
                         currentCaretPosition,
                         previousConformedValue,
@@ -465,7 +487,7 @@ define('skylark-textmask/createTextMaskInputElement',[
                     keepCharPositions
                 };
                 const {conformedValue} = conformToMask(safeRawValue, mask, conformToMaskConfig);
-                const piped = typeof pipe === b.strFunction;
+                const piped = typeof pipe === constants.strFunction;
                 let pipeResults = {};
                 if (piped) {
                     pipeResults = pipe(conformedValue, Object.assign({
@@ -525,21 +547,46 @@ define('skylark-textmask/createTextMaskInputElement',[
             throw new Error("The 'value' provided to Text Mask needs to be a string or a number. The value " + `received was:\n\n ${ JSON.stringify(inputValue) }`);
         }
     }
-});
-define('skylark-textmask/main',[
-	"skylark-langx/skylark",
-	'./conformToMask',
-	'./adjustCaretPosition',
-	'./createTextMaskInputElement'
-],function (skylark,conformToMask,adjustCaretPosition,createTextMaskInputElement) {
 
+
+    return textmask.createTextMaskInputElement = createTextMaskInputElement;
+});
+define('skylark-textmask/maskInput',[
+    "./textmask",
+	'./createTextMaskInputElement'
+],function (textmask,createTextMaskInputElement) {
     'use strict';
 
-    return skylark.attach("intg.textmask",{
-        conformToMask,
-        adjustCaretPosition,
-        createTextMaskInputElement
-    });
+
+	function maskInput(textMaskConfig) {
+	  const {inputElement} = textMaskConfig
+	  const textMaskInputElement = createTextMaskInputElement(textMaskConfig)
+	  const inputHandler = ({target: {value}}) => textMaskInputElement.update(value)
+
+	  inputElement.addEventListener('input', inputHandler)
+
+	  textMaskInputElement.update(inputElement.value)
+
+	  return {
+	    textMaskInputElement,
+
+	    destroy() {
+	      inputElement.removeEventListener('input', inputHandler)
+	    }
+	  }
+	}
+
+	return textmask.maskInput = maskInput;
+
+}); 
+define('skylark-textmask/main',[
+	"./textmask",
+	"./maskInput"
+],function (textmask) {
+    'use strict';
+
+	return textmask;
+
 }); 
 define('skylark-textmask', ['skylark-textmask/main'], function (main) { return main; });
 

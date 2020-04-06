@@ -1,21 +1,22 @@
 define([
+    "./textmask",
     './utilities',
-    './constants',
     './constants'
-], function (a, defaultPlaceholderChar, b) {
-    'use strict';
+], function (textmask,utilities,constants) {
+
     const emptyArray = [];
     const emptyString = '';
-    return function conformToMask(rawValue = emptyString, mask = emptyArray, config = {}) {
-        if (!a.isArray(mask)) {
-            if (typeof mask === b.strFunction) {
+
+    function conformToMask(rawValue = emptyString, mask = emptyArray, config = {}) {
+        if (!utilities.isArray(mask)) {
+            if (typeof mask === constants.strFunction) {
                 mask = mask(rawValue, config);
-                mask = a.processCaretTraps(mask).maskWithoutCaretTraps;
+                mask = utilities.processCaretTraps(mask).maskWithoutCaretTraps;
             } else {
                 throw new Error('Text-mask:conformToMask; The mask property must be an array.');
             }
         }
-        const {guide = true, previousConformedValue = emptyString, placeholderChar = defaultPlaceholderChar, placeholder = a.convertMaskToPlaceholder(mask, placeholderChar), currentCaretPosition, keepCharPositions} = config;
+        const {guide = true, previousConformedValue = emptyString, placeholderChar = constants.placeholderChar, placeholder = utilities.convertMaskToPlaceholder(mask, placeholderChar), currentCaretPosition, keepCharPositions} = config;
         const suppressGuide = guide === false && previousConformedValue !== undefined;
         const rawValueLength = rawValue.length;
         const previousConformedValueLength = previousConformedValue.length;
@@ -116,5 +117,9 @@ define([
             conformedValue,
             meta: { someCharsRejected }
         };
-    };
+    }
+
+
+    return textmask.conformToMask = conformToMask;
+    
 });

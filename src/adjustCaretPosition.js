@@ -1,8 +1,11 @@
-define(function () {
+define([
+    "./textmask"
+],function (textmask) {
     'use strict';
     const defaultArray = [];
     const emptyString = '';
-    return function adjustCaretPosition({previousConformedValue = emptyString, previousPlaceholder = emptyString, currentCaretPosition = 0, conformedValue, rawValue, placeholderChar, placeholder, indexesOfPipedChars = defaultArray, caretTrapIndexes = defaultArray}) {
+
+    function adjustCaretPosition({previousConformedValue = emptyString, previousPlaceholder = emptyString, currentCaretPosition = 0, conformedValue, rawValue, placeholderChar, placeholder, indexesOfPipedChars = defaultArray, caretTrapIndexes = defaultArray}) {
         if (currentCaretPosition === 0 || !rawValue.length) {
             return 0;
         }
@@ -79,5 +82,7 @@ define(function () {
                 }
             }
         }
-    };
+    }
+
+    return textmask.adjustCaretPosition = adjustCaretPosition;
 });

@@ -1,17 +1,20 @@
 define([
+    "./textmask",
     './adjustCaretPosition',
     './conformToMask',
     './utilities',
-    './constants',
     './constants'
-], function (adjustCaretPosition, conformToMask, a, defaultPlaceholderChar, b) {
+], function (textmask,adjustCaretPosition, conformToMask, a,constants) {
     'use strict';
+
     const emptyString = '';
     const strNone = 'none';
     const strObject = 'object';
     const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
     const defer = typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout;
-    return function createTextMaskInputElement(config) {
+
+    function createTextMaskInputElement(config) {
         const state = {
             previousConformedValue: undefined,
             previousPlaceholder: undefined
@@ -23,7 +26,7 @@ define([
                 mask: providedMask,
                 guide,
                 pipe,
-                placeholderChar = defaultPlaceholderChar,
+                placeholderChar = constants.placeholderChar,
                 keepCharPositions = false,
                 showMask = false
             } = config) {
@@ -49,7 +52,7 @@ define([
                 const {selectionEnd: currentCaretPosition} = inputElement;
                 const {previousConformedValue, previousPlaceholder} = state;
                 let caretTrapIndexes;
-                if (typeof providedMask === b.strFunction) {
+                if (typeof providedMask === constants.strFunction) {
                     mask = providedMask(safeRawValue, {
                         currentCaretPosition,
                         previousConformedValue,
@@ -75,7 +78,7 @@ define([
                     keepCharPositions
                 };
                 const {conformedValue} = conformToMask(safeRawValue, mask, conformToMaskConfig);
-                const piped = typeof pipe === b.strFunction;
+                const piped = typeof pipe === constants.strFunction;
                 let pipeResults = {};
                 if (piped) {
                     pipeResults = pipe(conformedValue, Object.assign({
@@ -135,4 +138,7 @@ define([
             throw new Error("The 'value' provided to Text Mask needs to be a string or a number. The value " + `received was:\n\n ${ JSON.stringify(inputValue) }`);
         }
     }
+
+
+    return textmask.createTextMaskInputElement = createTextMaskInputElement;
 });
